@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Material Pro — Deriv Auto Trader (Fixed + STEP_INDEX)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+  --bg:#0a0e27;--card:rgba(255,255,255,0.05);--text:#ffffff;--muted:#94a3b8;
+  --accent:#00d4ff;--accent-2:#7c3aed;--ai-purple:#a855f7;
+  --glass:rgba(255,255,255,0.05);
+  --glow:#00d4ff;
+  --gradient-1:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  --gradient-3:linear-gradient(135deg,#4facfe 0%,#00f2fe 100%);
+  --success: #10b981; --danger: #ef4444; --warn: #f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  margin:0;
+  font-family:'Inter', 'Poppins', system-ui, sans-serif;
+  background:var(--bg);
+  background-image:radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.12) 0px, transparent 50%),
+                   radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.12) 0px, transparent 50%);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* UI Components */
+.container{max-width:1400px;margin:0 auto;padding:20px;}
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px;background:rgba(255,255,255,0.03);backdrop-filter:blur(10px);
+  border-radius:16px;border:1px solid rgba(255,255,255,0.1);margin-bottom:20px;
+}
+.brand h1{
+  font-size:1.5rem;background:var(--gradient-3);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.pill{
+  padding:6px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;
+  background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);
+}
+.grid{display:grid;grid-template-columns:380px 1fr;gap:20px;}
+.card{
+  background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);
+  border-radius:16px;padding:20px;border:1px solid rgba(255,255,255,0.1);
+  box-shadow:0 8px 32px rgba(0,0,0,0.2);margin-bottom:15px;
+}
+/* Inputs & Buttons */
+label{display:block;color:var(--muted);font-size:0.8rem;margin-bottom:5px;}
+input,select{
+  width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;color:white;font-family:inherit;margin-bottom:10px;
+}
+button{
+  width:100%;padding:12px;border-radius:8px;border:none;cursor:pointer;
+  font-weight:600;transition:0.2s;margin-bottom:5px;
+}
+.btn-primary{background:var(--gradient-3);color:#000;}
+.btn-primary:hover{box-shadow:0 0 15px rgba(0,212,255,0.4);}
+.btn-danger{background:var(--danger);color:white;}
+.btn-ghost{background:rgba(255,255,255,0.1);color:white;}
+/* Visuals */
+.ticks-container{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;min-height:50px;}
+.tick-ball{
+  width:36px;height:36px;border-radius:50%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-size:0.9rem;font-weight:bold;
+  background:rgba(255,255,255,0.1);box-shadow:0 2px 5px rgba(0,0,0,0.3);
+}
+.tick-ball.up{background:var(--success);color:white;}
+.tick-ball.down{background:var(--danger);color:white;}
+.tick-quote{font-size:0.55rem;opacity:0.9;}
+.signal-box{
+  text-align:center;padding:15px;border-radius:12px;background:rgba(0,0,0,0.2);
+  border:1px solid rgba(255,255,255,0.05);min-height:100px;display:flex;
+  flex-direction:column;justify-content:center;align-items:center;
+}
+.signal-big{font-size:2rem;font-weight:800;margin-bottom:5px;}
+.signal-conf{font-size:0.9rem;color:var(--muted); text-align:center;}
+.logs{
+  height:200px;overflow-y:auto;font-family:monospace;font-size:0.8rem;
+  background:rgba(0,0,0,0.4);padding:10px;border-radius:8px;color:#ccc;
+}
+.log-entry{border-bottom:1px solid rgba(255,255,255,0.05);padding:2px 0;}
+.log-buy{color:var(--success);}
+.log-err{color:var(--danger);}
+/* Responsive */
+@media(max-width:900px){ .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <h1>Material Pro Trader</h1>
+      <div style="font-size:0.8rem;color:var(--muted)">V3.4+ • Improved Worm Logic • STEP_INDEX</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="pill" id="statusPill" style="color:var(--warn)">Disconnected</span>
+      <span class="pill" id="balancePill">Bal: $0.00</span>
+    </div>
+  </div>
+  <div class="grid">
+    <!-- Sidebar Controls -->
+    <div class="sidebar">
+      <div class="card">
+        <h3>Connection</h3>
+        <label>API Token</label>
+        <input type="password" id="tokenInput" placeholder="Paste Deriv Token Here">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+           <div><label>Symbol</label>
+           <select id="symbolSelect">
+             <option value="R_100">Vol_100</option>
+             <option value="R_75">Vol_75</option>
+             <option value="R_50">Vol_50</option>
+             <option value="R_25">Vol_25</option>
+             <option value="R_10">Vol_10</option>
+             <option value="STEP_INDEX">Step Index 100</option>
+           </select></div>
+           <div><label>Stake ($)</label><input type="number" id="stakeInput" value="1" step="0.5"></div>
+        </div>
+        <button class="btn-primary" id="btnConnect">Connect</button>
+        <button class="btn-ghost" id="btnDisconnect" style="margin-top:8px;">Disconnect</button>
+      </div>
+      <div class="card">
+        <h3>Auto Trader</h3>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div style="flex:1">
+            <label>Conf. Thresh (%)</label>
+            <input type="number" id="confInput" value="80" min="1" max="100">
+          </div>
+          <div style="flex:1">
+             <label>Duration (t)</label>
+             <input type="number" id="durationInput" value="5" min="1">
+          </div>
+        </div>
+        <button class="btn-primary" id="btnAutoStart" disabled>Start Auto Trade</button>
+        <button class="btn-danger" id="btnStop" disabled>STOP</button>
+      </div>
+      <div class="card">
+        <h3>Signal Analysis</h3>
+        <div class="signal-box" id="signalDisplay">
+          <div style="color:var(--muted)">Waiting for data...</div>
+        </div>
+        <div style="margin-top:10px;font-size:0.8rem;color:var(--muted)">
+          Blue: Momentum | Yellow: Digit Pressure
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Logs</h3>
+        <div class="logs" id="logConsole"></div>
+      </div>
+    </div>
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="card">
+        <h3>Live Ticks</h3>
+        <div class="ticks-container" id="ticksContainer"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;">
+          <h3>Worm Ensemble Chart</h3>
+          <div style="font-size:0.8rem;color:var(--muted)">Momentum vs Digit Pressure</div>
+        </div>
+        <div style="height:250px;position:relative;">
+          <canvas id="wormChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Profit/Loss Curve</h3>
+        <div style="height:200px;position:relative;">
+          <canvas id="plChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Debug rules display -->
+      <div class="card">
+         <h3>Rule Stats (Current State)</h3>
+         <div id="debugStats" style="font-size:1rem; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>Worm: <span id="sWorm" class="font-semibold">0.00</span></div>
+            <div>Pivot: <span id="sPivot" class="font-semibold">FALSE</span></div>
+         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * FINALIZED INDEX.HTML
+ * - Fixed WS URL and authorize format
+ * - Added STEP_INDEX market
+ * - Improved worm/pivot logic (smoothing + weighted digit strength)
+ * - Robust handling of proposal / buy -> supports different response shapes
+ * - Reconnect/backoff + defensive checks
+ *
+ * NOTES:
+ * - APP_ID: 1089 is debug/test app id. Replace with your app_id for production.
+ * - Use a Deriv API token with Trade permission for real trades. For safety, test on demo.
+ */
+
+// --- Configuration ---
+const APP_ID = 111893; // change if you have your own app id
+// Correct WebSocket endpoint (binaryws / ws.binaryws.com is the official)
+const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
+
+// --- State Variables ---
+let ws = null;
+let isConnected = false;
+let isAutoTrading = false;
+let ticks = [];
+let maxTicks = 200;
+let balance = 0;
+let isBuying = false;
+let reconnectAttempts = 0;
+let lastProposal = null; // store last proposal for buy
+let plHistory = [];
+
+// --- DOM Elements ---
+const $ = (id) => document.getElementById(id);
+const ui = {
+  token: $('tokenInput'),
+  symbol: $('symbolSelect'),
+  stake: $('stakeInput'),
+  duration: $('durationInput'),
+  threshold: $('confInput'),
+  btnConnect: $('btnConnect'),
+  btnDisconnect: $('btnDisconnect'),
+  btnAuto: $('btnAutoStart'),
+  btnStop: $('btnStop'),
+  status: $('statusPill'),
+  balance: $('balancePill'),
+  logs: $('logConsole'),
+  ticks: $('ticksContainer'),
+  signalBox: $('signalDisplay'),
+  debugWorm: $('sWorm'),
+  debugPivot: $('sPivot')
+};
+
+// --- Logger ---
+function log(msg, type = 'info') {
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + (type === 'buy' ? 'log-buy' : type === 'error' ? 'log-err' : '');
+  const time = new Date().toLocaleTimeString();
+  div.innerText = `[${time}] ${msg}`;
+  ui.logs.insertBefore(div, ui.logs.firstChild);
+}
+
+// --- Chart Setup ---
+let wormChartCtx = $('wormChart').getContext('2d');
+let plChartCtx = $('plChart').getContext('2d');
+
+let wormChart = new Chart(wormChartCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Momentum (Blue)', data: [], borderColor: undefined, borderWidth: 2, tension: 0.35, pointRadius:0 },
+      { label: 'Digit Strength (Yellow)', data: [], borderColor: undefined, borderWidth: 2, tension: 0.35, pointRadius:0 }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    scales: { x: { display: false }, y: { display: true, min: -1.2, max: 1.2 } },
+    plugins: { legend: { display: true } }
+  }
+});
+
+// Set colors after Chart init to avoid static color requirement in stylesheet
+wormChart.data.datasets[0].borderColor = '#00d4ff';
+wormChart.data.datasets[1].borderColor = '#f59e0b';
+wormChart.update();
+
+let plChart = new Chart(plChartCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{ label: 'Profit ($)', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: 0.2 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+});
+
+// --- Utilities: simple moving average & EMA helpers for smoothing ---
+function SMA(values) {
+  if (!values.length) return 0;
+  return values.reduce((a,b)=>a+b,0)/values.length;
+}
+function EMA(values, period=6) {
+  if (!values.length) return 0;
+  const k = 2/(period+1);
+  let ema = values[0];
+  for (let i=1;i<values.length;i++){
+    ema = values[i]*k + ema*(1-k);
+  }
+  return ema;
+}
+
+// --- Connection Buttons ---
+ui.btnConnect.addEventListener('click', () => {
+  const token = ui.token.value.trim();
+  if (!token) { log("Please enter an API Token", "error"); return; }
+  connectDeriv(token);
+});
+ui.btnDisconnect.addEventListener('click', () => {
+  if (ws) {
+    ws.close(1000, 'User disconnect');
+    ws = null;
+  }
+});
+ui.btnAuto.addEventListener('click', () => {
+  isAutoTrading = true;
+  ui.btnAuto.disabled = true;
+  ui.btnStop.disabled = false;
+  ui.symbol.disabled = true;
+  log("Auto Trading STARTED (Using confirmation logic)", "buy");
+});
+ui.btnStop.addEventListener('click', () => {
+  isAutoTrading = false;
+  ui.btnAuto.disabled = false;
+  ui.btnStop.disabled = true;
+  ui.symbol.disabled = false;
+  log("Auto Trading STOPPED");
+});
+
+// --- Connect / Reconnect Logic ---
+function connectDeriv(token) {
+  try {
+    if (ws) {
+      try { ws.close(); } catch(e) {}
+      ws = null;
+    }
+    ui.status.innerText = "Connecting...";
+    ui.status.style.color = "var(--warn)";
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      reconnectAttempts = 0;
+      log("Socket connected. Authorizing...");
+      // Authorize format expected by Deriv: { authorize: "TOKEN" }
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+    ws.onmessage = (msg) => {
+      let data;
+      try { data = JSON.parse(msg.data); } catch(e){ log("Malformed message", "error"); return; }
+      // Generic error handling from API
+      if (data.error) {
+        log(`API Error: ${JSON.stringify(data.error)}`, "error");
+        if (data.error.code === 'InvalidToken' || data.error.message && data.error.message.toLowerCase().includes('token')) {
+          ui.status.innerText = "Invalid Token";
+          ui.status.style.color = "var(--danger)";
+        }
+        return;
+      }
+      // Message type routing
+      if (data.msg_type === 'authorize' || data.authorize) {
+        // Authorize response contains authorize object
+        const auth = data.authorize || data;
+        isConnected = true;
+        ui.status.innerText = "Connected";
+        ui.status.style.color = "var(--success)";
+        ui.btnConnect.innerText = "Connected";
+        ui.btnConnect.disabled = true;
+        ui.btnAuto.disabled = false;
+        const bal = Number(auth.balance || (auth.authorize && auth.authorize.balance) || 0);
+        balance = isNaN(bal) ? 0 : bal;
+        ui.balance.innerText = `Bal: $${Number(balance).toFixed(2)}`;
+        log(`Auth success. Balance: $${Number(balance).toFixed(2)}`);
+        // Subscribe to ticks now that auth succeeded
+        subscribeTicks();
+        return;
+      }
+      // subscription ticks
+      if (data.msg_type === 'tick' || data.tick) {
+        processTick(data.tick || data);
+        return;
+      }
+      // proposal responses (when we request a proposal)
+      if (data.msg_type === 'proposal' || data.proposal) {
+        // Proposal object may be in data.proposal or data.proposal.proposal
+        const proposal = data.proposal || data;
+        // Extract id robustly (docs vary). Try common fields.
+        const proposal_id = (proposal.proposal && (proposal.proposal.id || proposal.proposal.proposal_id)) ||
+                             proposal.proposal_id || proposal.id || proposal.proposal?.id || proposal.id;
+        const ask = proposal.proposal?.ask_price || proposal.ask_price || proposal.proposal?.ask_price;
+        // store last proposal for attempted buy
+        lastProposal = { raw: proposal, id: proposal_id, ask_price: ask };
+        log(`Proposal received. id=${proposal_id} ask=${ask}`);
+        // If auto-trading and this proposal corresponds to our requested direction, execute buy.
+        if (isAutoTrading && !isBuying && lastProposal.id) {
+          // Note: we'll use buy by id if present.
+          isBuying = true;
+          tryBuyProposal(lastProposal);
+        }
+        return;
+      }
+      // buy response (contract placed)
+      if (data.msg_type === 'buy' || data.buy || data.contract_id || data.buy?.contract_id) {
+        // Buying finished (either success or error)
+        isBuying = false;
+        const buyResponse = data.buy || data;
+        const cid = buyResponse.contract_id || buyResponse.buy?.contract_id || buyResponse.contract?.contract_id;
+        if (cid) {
+          log(`Trade Placed! contract_id: ${cid}`, "buy");
+          // record into PL chart with placeholder (we'd normally wait for proposal_open_contract)
+          plHistory.push(0);
+          updatePLChart();
+        } else {
+          log(`Buy response: ${JSON.stringify(buyResponse)}`, "info");
+        }
+        return;
+      }
+      // generic subscription success / other messages (keep logs)
+      if (data.msg_type) {
+        log(`Msg: ${data.msg_type}`);
+      }
+    };
+    ws.onerror = (err) => {
+      log(`WebSocket error: ${JSON.stringify(err)}`, "error");
+    };
+    ws.onclose = (ev) => {
+      isConnected = false;
+      ui.status.innerText = "Disconnected";
+      ui.status.style.color = "var(--danger)";
+      ui.btnConnect.disabled = false;
+      ui.btnAuto.disabled = true;
+      ui.btnAuto.disabled = true;
+      log(`Connection closed (code: ${ev.code})`);
+      // auto-reconnect with backoff for transient network issues
+      if (ev.code !== 1000) {
+        reconnectAttempts++;
+        const delay = Math.min(30000, 2000 * reconnectAttempts);
+        log(`Attempting reconnect in ${Math.round(delay/1000)}s...`);
+        setTimeout(() => {
+          const token = ui.token.value.trim();
+          if (token) connectDeriv(token);
+        }, delay);
+      }
+    };
+
+    // Keep-Alive Ping every 25s
+    const pingInterval = setInterval(() => {
+      if (ws && ws.readyState === 1) {
+        try { ws.send(JSON.stringify({ ping: 1 })); } catch(e) {}
+      } else if (!ws || ws.readyState === 3) {
+        clearInterval(pingInterval);
+      }
+    }, 25000);
+  } catch (e) {
+    log('Connect error: ' + (e.message || e), 'error');
+  }
+}
+
+function safeSend(obj) {
+  try {
+    if (!ws || ws.readyState !== 1) {
+      log('Socket not ready to send', 'error');
+      return false;
+    }
+    ws.send(JSON.stringify(obj));
+    return true;
+  } catch (e) {
+    log('Send failed: ' + e.message, 'error');
+    return false;
+  }
+}
+
+// --- Subscribe ticks for selected symbol ---
+function subscribeTicks() {
+  if (!ws || ws.readyState !== 1) { log('Cannot subscribe: socket not open', 'error'); return; }
+  const symbol = ui.symbol.value;
+  const req = { ticks: symbol, subscribe: 1 };
+  safeSend(req);
+  // reset data
+  ticks = [];
+  wormChart.data.labels = [];
+  wormChart.data.datasets[0].data = [];
+  wormChart.data.datasets[1].data = [];
+  wormChart.update();
+  log(`Subscribed to ticks: ${symbol}`);
+}
+
+// --- Tick rendering & data ---
+function renderTick(digit, price, direction) {
+  const el = document.createElement('div');
+  const cls = direction === 'up' ? 'up' : 'down';
+  el.className = `tick-ball ${cls}`;
+  const formattedQuote = Number(price).toFixed(5);
+  const displayQuote = formattedQuote.substring(formattedQuote.length - 5);
+  el.innerHTML = `${digit}<div class="tick-quote">${displayQuote}</div>`;
+  ui.ticks.prepend(el);
+  if (ui.ticks.children.length > 25) ui.ticks.lastChild.remove();
+}
+
+// --- Process incoming tick ---
+function processTick(tickData) {
+  // tickData expected shape: { epoch, quote, pip_size } or tick
+  const price = Number(tickData.quote);
+  const epoch = tickData.epoch || Date.now()/1000;
+  const pipSize = typeof tickData.pip_size === 'number' ? tickData.pip_size : 5;
+  // last digit
+  const priceString = price.toFixed(pipSize);
+  const digit = Number(priceString.slice(-1));
+  // direction detection using last price
+  const lastP = ticks.length > 0 ? ticks[ticks.length-1].price : price;
+  const direction = price >= lastP ? 'up' : 'down';
+  ticks.push({ price, digit, time: epoch, direction });
+  if (ticks.length > maxTicks) ticks.shift();
+  // render
+  renderTick(digit, price, direction);
+  // run analysis when enough data
+  if (ticks.length >= 20) {
+    const analysis = runWormAnalysis();
+    updateCharts(analysis);
+    updateSignalBox(analysis);
+    if (isAutoTrading && !isBuying) {
+      checkAndExecute(analysis);
+    }
+  } else {
+    ui.signalBox.innerHTML = `<div style="color:var(--muted)">Collecting ticks... (${ticks.length}/20)</div>`;
+  }
+}
+
+// --- Improved Worm Analysis ---
+// returns: { momentum, digitStrength, discreteWorm, isPivot, lastDigit, lastDigitColor }
+function runWormAnalysis() {
+  // Use last 15-25 ticks for different calculations
+  const window = Math.min(25, Math.max(15, Math.floor(ticks.length * 0.6)));
+  const recent = ticks.slice(-window);
+  const prices = recent.map(t=>t.price);
+  const digits = recent.map(t=>t.digit);
+  // 1) Momentum using normalized ROC + smoothing (EMA)
+  const roc = (prices[prices.length-1] - prices[0]) / (prices[0] || 1); // relative change
+  // normalize by a small factor to keep within -1..1
+  let rawMomentum = Math.tanh(roc * 50); // tuned multiplier
+  // smooth momentum with EMA across last few rocs
+  const rocs = [];
+  for (let i=3;i<recent.length;i++){
+    const chunk = recent.slice(0+i-3, i+1).map(r=>r.price);
+    rocs.push((chunk[chunk.length-1]-chunk[0])/(chunk[0]||1));
+  }
+  const smoothRoc = rocs.length ? EMA(rocs, Math.min(6, rocs.length)) : roc;
+  let momentum = Math.tanh(smoothRoc * 50);
+  // 2) Digit strength: weighted by recency, high digits (5-9) considered positive pressure
+  let weight = 1;
+  let weightSum = 0;
+  let weightedScore = 0;
+  for (let i=0;i<digits.length;i++){
+    // more recent ticks have more weight
+    const w = 1 + (i / digits.length) * 2; // 1 .. 3
+    weightSum += w;
+    const val = digits[i] >= 5 ? 1 : -1; // >=5 => positive pressure, else negative
+    weightedScore += val * w;
+  }
+  const digitStrength = Math.tanh((weightedScore/weightSum) * 0.9); // normalize -1..1
+  // 3) Pivot detection: divergence between momentum and digit strength (strong opposite sign)
+  const isPivot = (momentum > 0.25 && digitStrength < -0.25) || (momentum < -0.25 && digitStrength > 0.25);
+  // 4) discrete worm: thresholds for actionable states
+  let discreteWorm = 0.00;
+  if (momentum >= 0.4) discreteWorm = 1.00;
+  else if (momentum <= -0.4) discreteWorm = -1.00;
+  // last tick info
+  const lastTick = ticks[ticks.length-1];
+  const lastDigit = lastTick.digit;
+  const lastDigitColor = lastTick.direction === 'up' ? 'green' : 'red';
+  return { momentum, digitStrength, discreteWorm, isPivot, lastDigit, lastDigitColor };
+}
+
+// --- Charts update ---
+function updateCharts(analysis) {
+  wormChart.data.labels.push('');
+  wormChart.data.datasets[0].data.push(analysis.momentum);
+  wormChart.data.datasets[1].data.push(analysis.digitStrength);
+  if (wormChart.data.labels.length > 80) {
+    wormChart.data.labels.shift();
+    wormChart.data.datasets[0].data.shift();
+    wormChart.data.datasets[1].data.shift();
+  }
+  wormChart.update();
+  // debug fields
+  const wormColor = analysis.discreteWorm === 1.00 ? 'var(--success)' : analysis.discreteWorm === -1.00 ? 'var(--danger)' : 'var(--muted)';
+  const pivotColor = analysis.isPivot ? 'var(--success)' : 'var(--danger)';
+  ui.debugWorm.innerHTML = `<span style="color:${wormColor}">${analysis.discreteWorm.toFixed(2)}</span>`;
+  ui.debugPivot.innerHTML = `<span style="color:${pivotColor}">${analysis.isPivot ? "TRUE" : "FALSE"}</span>`;
+}
+
+// --- Signal box and confirmation rules ---
+// CALL: Worm 1.00 AND pivot TRUE AND Even Digit AND Green Tick
+// PUT: Worm -1.00 AND pivot TRUE AND Odd Digit AND Red Tick
+function updateSignalBox(analysis) {
+  const { discreteWorm, isPivot, lastDigit, lastDigitColor } = analysis;
+  const isEven = lastDigit % 2 === 0;
+  let signal = "WAIT";
+  let conf = 0;
+  let color = "var(--muted)";
+  let breakdown = 'Waiting for Worm or Pivot status.';
+  if (!isPivot) {
+    breakdown = 'Waiting for Pivot TRUE status.';
+  } else if (discreteWorm === 1.00) {
+    if (isEven && lastDigitColor === 'green') {
+      signal = "CALL";
+      conf = 100;
+      color = "var(--success)";
+      breakdown = `CONFIRMED UP: Worm 1.00, Pivot True, Even Digit ${lastDigit} & Green.`;
+    } else {
+      breakdown = `Worm 1.00, Pivot True. Waiting for Even digit (0,2,4,6,8) in Green.`;
+    }
+  } else if (discreteWorm === -1.00) {
+    if (!isEven && lastDigitColor === 'red') {
+      signal = "PUT";
+      conf = 100;
+      color = "var(--danger)";
+      breakdown = `CONFIRMED FALL: Worm -1.00, Pivot True, Odd Digit ${lastDigit} & Red.`;
+    } else {
+      breakdown = `Worm -1.00, Pivot True. Waiting for Odd digit (1,3,5,7,9) in Red.`;
+    }
+  } else {
+    breakdown = 'Pivot True, but Worm is neutral. Waiting for strong momentum.';
+  }
+  ui.signalBox.innerHTML = `
+    <div class="signal-big" style="color:${color}">${signal}</div>
+    <div class="signal-conf">${breakdown}</div>
+  `;
+  return { direction: signal === 'CALL' ? 'CALL' : signal === 'PUT' ? 'PUT' : null, confidence: conf };
+}
+
+// --- Check rules and request proposal if confirmed ---
+function checkAndExecute(analysis) {
+  const result = updateSignalBox(analysis);
+  const threshold = Number(ui.threshold.value) || 80;
+  if (result.direction && result.confidence >= threshold) {
+    if (isBuying) return;
+    log(`CONFIRMATION SIGNAL: ${result.direction}. Requesting proposal...`, "buy");
+    sendProposal(result.direction);
+  }
+}
+
+// --- Send Proposal (price quote) ---
+function sendProposal(direction) {
+  const amount = Number(ui.stake.value) || 1;
+  const duration = Number(ui.duration.value) || 5;
+  const req = {
+    proposal: 1,
+    amount: amount,
+    basis: "stake",
+    contract_type: direction === 'CALL' ? "CALL" : "PUT",
+    currency: "USD",
+    duration: duration,
+    duration_unit: "t",
+    symbol: ui.symbol.value
+  };
+  if (!safeSend(req)) log('Failed to send proposal (socket not open)', 'error');
+}
+
+// --- Attempt to buy using lastProposal; supports both buy by proposal id and buy by parameters ---
+function tryBuyProposal(proposal) {
+  if (!proposal || !proposal.id) {
+    // fallback: buy by passing full parameters (not ideal)
+    log('No proposal id available. Attempting buy via parameters (fallback).', 'error');
+    buyByParameters();
+    return;
+  }
+  // Use buy by id pattern: { buy: PROPOSAL_ID, price: ASK_PRICE } OR { buy: PROPOSAL_ID } depending on API
+  const buyReq = { buy: proposal.id };
+  if (proposal.ask_price) buyReq.price = proposal.ask_price;
+  const ok = safeSend(buyReq);
+  if (!ok) {
+    log('Buy send failed; resetting isBuying flag.', 'error');
+    isBuying = false;
+  } else {
+    log(`Sending buy request for proposal id=${proposal.id}`, 'buy');
+  }
+}
+
+// Fallback buy by parameters (buy:1 + parameters) - uses safer contract details if proposal id not present.
+function buyByParameters() {
+  const amount = Number(ui.stake.value) || 1;
+  const duration = Number(ui.duration.value) || 5;
+  const req = {
+    buy: 1,
+    price: undefined,
+    parameters: {
+      amount,
+      basis: "stake",
+      contract_type: "CALL", // will be fixed below based on last signal
+      currency: "USD",
+      duration,
+      duration_unit: "t",
+      symbol: ui.symbol.value
+    }
+  };
+  // determine direction from signal box text (quick parse)
+  const txt = ui.signalBox.innerText || '';
+  if (/CONFIRMED UP|CALL/i.test(txt)) req.parameters.contract_type = "CALL";
+  else if (/CONFIRMED FALL|PUT/i.test(txt)) req.parameters.contract_type = "PUT";
+  const ok = safeSend(req);
+  if (!ok) {
+    log('Buy-by-parameters failed to send', 'error');
+    isBuying = false;
+  } else {
+    log('Buy-by-parameters sent (fallback)', 'buy');
+  }
+}
+
+// --- PL Chart update (placeholder) ---
+function updatePLChart() {
+  plChart.data.labels.push('');
+  plChart.data.datasets[0].data = plHistory.slice(-100);
+  if (plChart.data.labels.length > 100) plChart.data.labels.shift();
+  plChart.update();
+}
+
+// --- Initialize UI / ready ---
+log("System Ready. Please enter token and connect.");
+
+// Optional: expose helper to quickly add STEP_INDEX programmatically (already added)
+</script>
+</body>
+</html>
